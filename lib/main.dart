@@ -1,8 +1,47 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 void main() {
   runApp(const MyApp());
+}
+
+abstract class AuthenticationState {
+  const AuthenticationState();
+}
+
+class AuthenticationUnauthenticated extends AuthenticationState {
+  const AuthenticationUnauthenticated();
+}
+
+class AuthenticationAuthenticated extends AuthenticationState {
+  final String userToken;
+
+  const AuthenticationAuthenticated(this.userToken);
+}
+
+class AuthenticationBloc extends Cubit<AuthenticationState> {
+  AuthenticationBloc() : super(const AuthenticationUnauthenticated());
+
+  void logIn(String userId) => emit(AuthenticationAuthenticated(userId));
+
+  void logOut() => emit(const AuthenticationUnauthenticated());
+}
+
+class GoRouterRefreshStream extends ChangeNotifier {
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    notifyListeners();
+    _subscription = stream.asBroadcastStream().listen((_) => notifyListeners());
+  }
+
+  late final StreamSubscription<dynamic> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
 }
 
 class Book {
@@ -103,21 +142,126 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.white,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFFFF7FA),
-          centerTitle: true,
-          iconTheme: IconThemeData(color: Colors.black87),
-          titleTextStyle: TextStyle(color: Color(0xFF333333), fontSize: 20),
+    return BlocProvider<AuthenticationBloc>(
+      create: (_) => AuthenticationBloc(),
+      child: Builder(
+        builder: (context) {
+          final authBloc = context.read<AuthenticationBloc>();
+          final router = GoRouter(
+            initialLocation: '/',
+            refreshListenable: GoRouterRefreshStream(authBloc.stream),
+            redirect: (context, state) {
+              final isAuthed = authBloc.state is AuthenticationAuthenticated;
+              final loggingIn = state.matchedLocation == '/login';
+              if (!isAuthed) return loggingIn ? null : '/login';
+              if (loggingIn) return '/';
+              return null;
+            },
+            routes: [
+              GoRoute(
+                path: '/login',
+                name: 'login',
+                builder: (context, state) => const LoginPage(),
+              ),
+              ShellRoute(
+                builder: (context, state, child) => BlocProvider(
+                  create: (_) => BookCubit()..init(),
+                  child: _ShellScaffold(
+                    location: state.matchedLocation,
+                    child: child,
+                  ),
+                ),
+                routes: [
+                  GoRoute(
+                    path: '/',
+                    name: 'home',
+                    builder: (context, state) => const BookListPage(),
+                  ),
+                  GoRoute(
+                    path: '/byAuthor',
+                    name: 'byAuthor',
+                    builder: (context, state) =>
+                        const BookListPage(sort: SortBy.author),
+                    routes: [
+                      GoRoute(
+                        path: 'detail',
+                        name: 'byAuthorDetail',
+                        builder: (context, state) => const BookDetailPage(),
+                      ),
+                    ],
+                  ),
+                  GoRoute(
+                    path: '/byTitle',
+                    name: 'byTitle',
+                    builder: (context, state) =>
+                        const BookListPage(sort: SortBy.title),
+                    routes: [
+                      GoRoute(
+                        path: 'detail',
+                        name: 'byTitleDetail',
+                        builder: (context, state) => const BookDetailPage(),
+                      ),
+                    ],
+                  ),
+                  GoRoute(
+                    path: '/profile',
+                    name: 'profile',
+                    builder: (context, state) => const ProfilePage(),
+                  ),
+                ],
+              ),
+            ],
+          );
+
+          return MaterialApp.router(
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData(
+              useMaterial3: true,
+              scaffoldBackgroundColor: Colors.white,
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Color(0xFFFFF7FA),
+                centerTitle: true,
+                iconTheme: IconThemeData(color: Colors.black87),
+                titleTextStyle: TextStyle(fontSize: 20),
+              ),
+            ),
+            routerConfig: router,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class LoginPage extends StatelessWidget {
+  const LoginPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () => context.read<AuthenticationBloc>().logIn('user'),
+          child: const Text('Log in'),
         ),
       ),
-      home: BlocProvider(
-        create: (_) => BookCubit()..init(),
-        child: const RootNavigator(),
+    );
+  }
+}
+
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Profile')),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () => context.read<AuthenticationBloc>().logOut(),
+          child: const Text('Log out'),
+        ),
       ),
     );
   }
@@ -140,7 +284,9 @@ class RootNavigator extends StatelessWidget {
 }
 
 class BookListPage extends StatelessWidget {
-  const BookListPage({super.key});
+  final SortBy? sort;
+
+  const BookListPage({super.key, this.sort});
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +313,13 @@ class BookListPage extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final book = state.books[index];
                     return GestureDetector(
-                      onTap: () => context.read<BookCubit>().selectBook(book),
+                      onTap: () {
+                        context.read<BookCubit>().selectBook(book);
+                        final base = sort == SortBy.title
+                            ? '/byTitle'
+                            : '/byAuthor';
+                        context.go('$base/detail');
+                      },
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(2),
                         child: Image.network(
@@ -212,12 +364,19 @@ class BookListPage extends StatelessWidget {
 }
 
 class BookDetailPage extends StatelessWidget {
-  final Book book;
+  final Book? book;
 
-  const BookDetailPage({super.key, required this.book});
+  const BookDetailPage({super.key, this.book});
 
   @override
   Widget build(BuildContext context) {
+    final book = this.book ?? context.watch<BookCubit>().state.selected;
+    if (book == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go('/byAuthor');
+      });
+      return const Scaffold(body: SizedBox.shrink());
+    }
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -279,6 +438,46 @@ class BookDetailPage extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ShellScaffold extends StatelessWidget {
+  final Widget child;
+  final String location;
+
+  const _ShellScaffold({required this.child, required this.location});
+
+  static const _tabs = [
+    ('/byAuthor', Icons.person_outline, 'By Author'),
+    ('/byTitle', Icons.text_fields, 'By Title'),
+    ('/profile', Icons.settings_outlined, 'Profile'),
+  ];
+
+  int get _currentIndex {
+    for (var i = 0; i < _tabs.length; i++) {
+      if (location.startsWith(_tabs[i].$1)) return i;
+    }
+    return 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: child,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: const Color(0xFFF3EDF7),
+        selectedItemColor: const Color(0xFF6750A4),
+        unselectedItemColor: Colors.black87,
+        showUnselectedLabels: true,
+        onTap: (i) => context.go(_tabs[i].$1),
+        items: [
+          for (final t in _tabs)
+            BottomNavigationBarItem(icon: Icon(t.$2), label: t.$3),
+        ],
       ),
     );
   }
