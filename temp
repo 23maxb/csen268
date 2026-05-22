@@ -1,0 +1,3 @@
+flutter clean
+  cd ios && pod install && cd ..
+  flutter run

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../services/recipe_service.dart';
 import '../widgets/meal_section.dart';
 import 'home_page.dart' show Divider;
 
@@ -12,6 +13,13 @@ class CalendarPage extends StatefulWidget {
 
 class _CalendarPageState extends State<CalendarPage> {
   int _selectedDay = 18;
+  late Future<List<Recipe>> _recipesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _recipesFuture = RecipeService.instance.findFromUserInventory(number: 3);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,25 +31,58 @@ class _CalendarPageState extends State<CalendarPage> {
           children: [
             _buildCalendar(),
             const SizedBox(height: 24),
-            const MealSection(
-              label: 'Breakfast',
-              title: 'Frozen Eggo waffles\nand fruit',
-              details: ['1 Eggo waffle box', '1 Apple', '1 Pineapple'],
-            ),
-            const Divider(),
-            const MealSection(
-              label: 'Lunch',
-              title: 'Leftovers from\nChipotle',
-              subtitle: 'No Prep Required!',
-            ),
-            const Divider(),
-            const MealSection(
-              label: 'Next Meal',
-              title: 'Salmon Nigiri with Gyoza\nand Ika Geso',
-              details: [
-                '1 1/2 cups (320 g) Calrose rice (sushi rice)',
-                '3/4 cups (430 ml) water',
-              ],
+            FutureBuilder<List<Recipe>>(
+              future: _recipesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CupertinoActivityIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Column(
+                    children: [
+                      Text(
+                        'Failed to load recipes.\n${snapshot.error}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      const SizedBox(height: 12),
+                      CupertinoButton(
+                        onPressed: () => setState(() {
+                          _recipesFuture = RecipeService.instance
+                              .findFromUserInventory(number: 3);
+                        }),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  );
+                }
+                final recipes = snapshot.data ?? [];
+                if (recipes.isEmpty) {
+                  return const Text(
+                    'No recipe suggestions yet.',
+                    style: TextStyle(fontSize: 13),
+                  );
+                }
+                const labels = ['Breakfast', 'Lunch', 'Dinner'];
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < recipes.length; i++) ...[
+                      MealSection(
+                        label: i < labels.length ? labels[i] : 'Meal ${i + 1}',
+                        title: recipes[i].title,
+                        recipeId: recipes[i].id,
+                        imageUrl: recipes[i].image,
+                        details: recipes[i]
+                            .missedIngredients
+                            .map((m) => m.original)
+                            .toList(),
+                      ),
+                      if (i < recipes.length - 1) const Divider(),
+                    ],
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -51,7 +92,6 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Widget _buildCalendar() {
     const daysHeader = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-    // Rough May 2023 layout starting Monday May 1
     final weeks = <List<int?>>[
       [1, 2, 3, 4, 5, 6, 7],
       [8, 9, 10, 11, 12, 13, 14],

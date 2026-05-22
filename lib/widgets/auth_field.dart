@@ -4,12 +4,16 @@ class AuthField extends StatelessWidget {
   final String label;
   final bool obscure;
   final TextEditingController? controller;
+  final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
 
   const AuthField({
     super.key,
     required this.label,
     this.obscure = false,
     this.controller,
+    this.keyboardType,
+    this.textInputAction,
   });
 
   @override
@@ -29,6 +33,10 @@ class AuthField extends StatelessWidget {
         CupertinoTextField(
           controller: controller,
           obscureText: obscure,
+          keyboardType: keyboardType,
+          textInputAction: textInputAction,
+          autocorrect: !obscure,
+          enableSuggestions: !obscure,
           decoration: const BoxDecoration(
             border: Border(
               bottom: BorderSide(color: CupertinoColors.systemGrey3),

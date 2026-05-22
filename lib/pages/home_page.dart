@@ -1,56 +1,93 @@
 import 'package:flutter/cupertino.dart';
 
+import '../services/recipe_service.dart';
 import '../widgets/meal_section.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  late Future<List<Recipe>> _recipesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _recipesFuture = RecipeService.instance.findFromUserInventory(number: 3);
+  }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'Welcome, Max',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
-            ),
-            SizedBox(height: 16),
-            MealSection(
-              label: 'Next Meal',
-              title: 'Salmon Nigiri with Gyoza\nand Ika Geso',
-              details: [
-                '1 1/2 cups (320 g) Calrose rice (sushi rice)',
-                '3/4 cups (430 ml) water',
-                '1 tsp salt',
-                '3 tbsp (45 ml) rice vinegar',
-                '1 tbsp sugar',
-                '1  sushi-grade skinless salmon steak (450 g) (see note)',
-                '1 tsp (5 ml) wasabi',
-                'Soy sauce for sushi and sashimi, to taste',
-                'Pickled ginger, to taste',
+      child: FutureBuilder<List<Recipe>>(
+        future: _recipesFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CupertinoActivityIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Failed to load recipes.\n${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 12),
+                    CupertinoButton(
+                      onPressed: () => setState(() {
+                        _recipesFuture = RecipeService.instance
+                            .findFromUserInventory(number: 3);
+                      }),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          final recipes = snapshot.data ?? [];
+          const labels = ['Next Meal', 'Dinner', 'Breakfast'];
+          return SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Welcome, Max',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 16),
+                if (recipes.isEmpty)
+                  const Text(
+                    'No recipe suggestions yet. Add items to your inventory.',
+                    style: TextStyle(fontSize: 13),
+                  )
+                else
+                  for (var i = 0; i < recipes.length; i++) ...[
+                    MealSection(
+                      label: i < labels.length ? labels[i] : 'Meal ${i + 1}',
+                      title: recipes[i].title,
+                      recipeId: recipes[i].id,
+                      imageUrl: recipes[i].image,
+                      details: recipes[i]
+                          .missedIngredients
+                          .map((m) => m.original)
+                          .toList(),
+                    ),
+                    if (i < recipes.length - 1) const Divider(),
+                  ],
               ],
             ),
-            Divider(),
-            MealSection(
-              label: 'Dinner',
-              title: 'Leftovers from\nChipotle',
-              subtitle: 'No Prep Required!',
-            ),
-            Divider(),
-            MealSection(
-              label: 'Breakfast',
-              title: 'Frozen Eggo waffles\nand fruit',
-              details: [
-                '1 Eggo waffle box',
-                '1 Apple',
-                '1 Pineapple',
-              ],
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

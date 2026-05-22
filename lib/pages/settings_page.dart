@@ -1,4 +1,7 @@
 import 'package:flutter/cupertino.dart';
+import 'package:go_router/go_router.dart';
+
+import '../services/auth_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -73,6 +76,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   ],
                 ),
               ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: CupertinoButton(
+                color: CupertinoColors.destructiveRed,
+                onPressed: () async {
+                  await AuthService.instance.signOut();
+                  if (context.mounted) context.go('/login');
+                },
+                child: const Text('Log Out'),
+              ),
+            ),
           ],
         ),
       ),

@@ -1,9 +1,13 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import 'feature_flags.dart';
 import 'pages/calendar_page.dart';
 import 'pages/home_page.dart';
 import 'pages/inventory_page.dart';
+import 'pages/chat_page.dart';
 import 'pages/login_page.dart';
+import 'pages/messages_page.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/recipe_page.dart';
 import 'pages/register_page.dart';
@@ -26,8 +30,22 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const RegisterPage(),
     ),
     GoRoute(
-      path: '/recipe',
-      builder: (context, state) => const RecipePage(),
+      path: '/recipe/:id',
+      builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+        return RecipePage(
+          id: id,
+          initialTitle: state.uri.queryParameters['title'],
+          initialImage: state.uri.queryParameters['image'],
+        );
+      },
+    ),
+    GoRoute(
+      path: '/messages/:chatId',
+      builder: (context, state) => ChatPage(
+        chatId: state.pathParameters['chatId']!,
+        otherEmail: state.uri.queryParameters['email'] ?? '',
+      ),
     ),
     ShellRoute(
       builder: (context, state, child) =>
@@ -35,19 +53,29 @@ final GoRouter appRouter = GoRouter(
       routes: [
         GoRoute(
           path: '/home',
-          builder: (context, state) => const HomePage(),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: HomePage()),
         ),
-        GoRoute(
-          path: '/calendar',
-          builder: (context, state) => const CalendarPage(),
-        ),
+        if (kCalendarEnabled)
+          GoRoute(
+            path: '/calendar',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: CalendarPage()),
+          ),
         GoRoute(
           path: '/inventory',
-          builder: (context, state) => const InventoryPage(),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: InventoryPage()),
+        ),
+        GoRoute(
+          path: '/messages',
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: MessagesPage()),
         ),
         GoRoute(
           path: '/settings',
-          builder: (context, state) => const SettingsPage(),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: SettingsPage()),
         ),
       ],
     ),

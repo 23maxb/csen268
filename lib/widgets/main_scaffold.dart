@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 
+import '../feature_flags.dart';
+
 class MainScaffold extends StatelessWidget {
   final Widget child;
   final String location;
@@ -11,10 +13,11 @@ class MainScaffold extends StatelessWidget {
     required this.location,
   });
 
-  static const _tabs = [
+  static final List<(String, IconData)> _tabs = [
     ('/home', CupertinoIcons.house),
-    ('/calendar', CupertinoIcons.calendar),
+    if (kCalendarEnabled) ('/calendar', CupertinoIcons.calendar),
     ('/inventory', CupertinoIcons.shopping_cart),
+    ('/messages', CupertinoIcons.chat_bubble_2),
     ('/settings', CupertinoIcons.settings),
   ];
 

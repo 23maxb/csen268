@@ -1,96 +1,290 @@
 import 'package:flutter/cupertino.dart';
 
-class InventoryPage extends StatelessWidget {
+import '../services/inventory_service.dart';
+
+class InventoryPage extends StatefulWidget {
   const InventoryPage({super.key});
 
-  static const _sections = {
-    'Vegetables': [
-      'Carrots (3)',
-      'Broccoli (1 head)',
-      'Spinach (1 bag)',
-      'Bell Peppers (2 red, 1 yellow)',
-      'Zucchini (2)',
-      'Mushrooms (1 box)',
-      'Green Onions (1 bunch)',
-      'Lettuce (1 head)',
-    ],
-    'Fruit': [
-      'Apples (4)',
-      'Bananas (5)',
-      'Oranges (3)',
-      'Grapes (1 small bunch)',
-      'Strawberries (1 container)',
-      'Blueberries (1 container)',
-      'Lemon (2)',
-    ],
-    'Meat & Fish': [
-      'Chicken Breast (2 pieces)',
-      'Ground Beef (500g)',
-      'Bacon (1 pack)',
-      'Salmon Fillet (1)',
-      'Deli Turkey Slices (1 pack)',
-    ],
-    'Dairy & Eggs': [
-      'Milk (1L)',
-      'Yogurt (2 small tubs)',
-      'Butter (1 stick)',
-      'Cheddar Cheese (1 block)',
-      'Eggs (12)',
-    ],
-  };
+  @override
+  State<InventoryPage> createState() => _InventoryPageState();
+}
+
+class _InventoryPageState extends State<InventoryPage> {
+  Future<void>? _loadFuture;
+  Map<String, List<String>> _sections = {};
+  bool _editMode = false;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFuture = _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await InventoryService.instance.fetchOrCreate();
+      if (!mounted) return;
+      setState(() {
+        _sections = data;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    }
+  }
+
+  Future<void> _toggleEditMode() async {
+    if (_editMode) {
+      setState(() => _saving = true);
+      try {
+        await InventoryService.instance.save(_sections);
+        if (!mounted) return;
+        setState(() {
+          _editMode = false;
+          _saving = false;
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        _showError('Failed to save: $e');
+      }
+    } else {
+      setState(() => _editMode = true);
+    }
+  }
+
+  void _showError(String msg) {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Error'),
+        content: Text(msg),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _updateItem(String section, int index, String value) {
+    setState(() {
+      _sections[section]![index] = value;
+    });
+  }
+
+  void _deleteItem(String section, int index) {
+    setState(() {
+      _sections[section]!.removeAt(index);
+    });
+  }
+
+  Future<void> _addItem(String section) async {
+    final value = await _promptText('Add to $section');
+    if (value == null || value.trim().isEmpty) return;
+    setState(() {
+      _sections[section]!.add(value.trim());
+    });
+  }
+
+  Future<void> _addSection() async {
+    final value = await _promptText('New section name');
+    if (value == null || value.trim().isEmpty) return;
+    final name = value.trim();
+    if (_sections.containsKey(name)) return;
+    setState(() {
+      _sections[name] = [];
+    });
+  }
+
+  void _deleteSection(String section) {
+    setState(() {
+      _sections.remove(section);
+    });
+  }
+
+  Future<String?> _promptText(String title) {
+    final controller = TextEditingController();
+    return showCupertinoDialog<String>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(title),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: CupertinoTextField(
+            controller: controller,
+            autofocus: true,
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Center(
-              child: Text(
-                'Inventory',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+      child: FutureBuilder<void>(
+        future: _loadFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CupertinoActivityIndicator());
+          }
+          if (_error != null) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Failed to load inventory.\n$_error',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 12),
+                    CupertinoButton(
+                      onPressed: () {
+                        setState(() => _loadFuture = _load());
+                      },
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Row(
+            );
+          }
+          return SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ToolButton(
-                  icon: CupertinoIcons.doc_text,
-                  label: 'Scan Receipt',
-                  onPressed: () {},
-                ),
-                const SizedBox(width: 12),
-                _ToolButton(
-                  icon: CupertinoIcons.pencil,
-                  label: 'Edit Mode',
-                  onPressed: () {},
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            for (final entry in _sections.entries) ...[
-              Text(
-                entry.key,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 6),
-              for (final item in entry.value)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 1),
+                const Center(
                   child: Text(
-                    item,
-                    style: const TextStyle(fontSize: 13),
+                    'Inventory',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
                   ),
                 ),
-              const SizedBox(height: 16),
-            ],
-          ],
-        ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    _ToolButton(
+                      icon: CupertinoIcons.doc_text,
+                      label: 'Scan Receipt',
+                      onPressed: () {},
+                    ),
+                    const SizedBox(width: 12),
+                    _ToolButton(
+                      icon: _editMode
+                          ? CupertinoIcons.check_mark
+                          : CupertinoIcons.pencil,
+                      label: _saving
+                          ? 'Saving...'
+                          : (_editMode ? 'Done' : 'Edit Mode'),
+                      onPressed: _saving ? () {} : _toggleEditMode,
+                    ),
+                    if (_editMode) ...[
+                      const SizedBox(width: 12),
+                      _ToolButton(
+                        icon: CupertinoIcons.add,
+                        label: 'Section',
+                        onPressed: _addSection,
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 24),
+                for (final entry in _sections.entries) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          entry.key,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (_editMode) ...[
+                        GestureDetector(
+                          onTap: () => _addItem(entry.key),
+                          child: const Padding(
+                            padding: EdgeInsets.all(4),
+                            child: Icon(CupertinoIcons.add, size: 18),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => _deleteSection(entry.key),
+                          child: const Padding(
+                            padding: EdgeInsets.all(4),
+                            child: Icon(
+                              CupertinoIcons.trash,
+                              size: 16,
+                              color: CupertinoColors.systemRed,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  for (var i = 0; i < entry.value.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: _editMode
+                          ? Row(
+                              children: [
+                                Expanded(
+                                  child: CupertinoTextField(
+                                    controller: TextEditingController(
+                                      text: entry.value[i],
+                                    ),
+                                    style: const TextStyle(fontSize: 13),
+                                    onSubmitted: (v) =>
+                                        _updateItem(entry.key, i, v),
+                                    onChanged: (v) =>
+                                        _sections[entry.key]![i] = v,
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () => _deleteItem(entry.key, i),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(6),
+                                    child: Icon(
+                                      CupertinoIcons.minus_circle,
+                                      size: 18,
+                                      color: CupertinoColors.systemRed,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              entry.value[i],
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                    ),
+                  const SizedBox(height: 16),
+                ],
+              ],
+            ),
+          );
+        },
       ),
     );
   }

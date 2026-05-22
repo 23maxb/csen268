@@ -6,6 +6,8 @@ class MealSection extends StatelessWidget {
   final String title;
   final List<String> details;
   final String? subtitle;
+  final int? recipeId;
+  final String? imageUrl;
 
   const MealSection({
     super.key,
@@ -13,7 +15,22 @@ class MealSection extends StatelessWidget {
     required this.title,
     this.details = const [],
     this.subtitle,
+    this.recipeId,
+    this.imageUrl,
   });
+
+  void _open(BuildContext context) {
+    if (recipeId == null) return;
+    final params = <String, String>{
+      'title': title,
+      if (imageUrl != null && imageUrl!.isNotEmpty) 'image': imageUrl!,
+    };
+    final query = params.entries
+        .map((e) =>
+            '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    context.push('/recipe/$recipeId${query.isEmpty ? '' : '?$query'}');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +41,7 @@ class MealSection extends StatelessWidget {
         children: [
           Expanded(
             child: GestureDetector(
-              onTap: () => context.push('/recipe'),
+              onTap: () => _open(context),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
