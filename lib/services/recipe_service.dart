@@ -97,6 +97,82 @@ class RecipeDetails {
   }
 }
 
+class MealPlanMeal {
+  final int id;
+  final String title;
+  final String imageType;
+  final int readyInMinutes;
+  final int servings;
+  final String sourceUrl;
+
+  MealPlanMeal({
+    required this.id,
+    required this.title,
+    required this.imageType,
+    required this.readyInMinutes,
+    required this.servings,
+    required this.sourceUrl,
+  });
+
+  /// Spoonacular only returns the image *type* for meal-plan results; the
+  /// full image URL is derived from the recipe id and that type.
+  String get image =>
+      'https://img.spoonacular.com/recipes/$id-312x231.$imageType';
+
+  factory MealPlanMeal.fromJson(Map<String, dynamic> json) {
+    return MealPlanMeal(
+      id: (json['id'] as num).toInt(),
+      title: (json['title'] ?? '').toString(),
+      imageType: (json['imageType'] ?? 'jpg').toString(),
+      readyInMinutes: (json['readyInMinutes'] as num?)?.toInt() ?? 0,
+      servings: (json['servings'] as num?)?.toInt() ?? 1,
+      sourceUrl: (json['sourceUrl'] ?? '').toString(),
+    );
+  }
+}
+
+class MealPlanNutrients {
+  final double calories;
+  final double carbohydrates;
+  final double fat;
+  final double protein;
+
+  MealPlanNutrients({
+    required this.calories,
+    required this.carbohydrates,
+    required this.fat,
+    required this.protein,
+  });
+
+  factory MealPlanNutrients.fromJson(Map<String, dynamic> json) {
+    double d(dynamic v) => (v as num?)?.toDouble() ?? 0;
+    return MealPlanNutrients(
+      calories: d(json['calories']),
+      carbohydrates: d(json['carbohydrates']),
+      fat: d(json['fat']),
+      protein: d(json['protein']),
+    );
+  }
+}
+
+class MealPlan {
+  final List<MealPlanMeal> meals;
+  final MealPlanNutrients nutrients;
+
+  MealPlan({required this.meals, required this.nutrients});
+
+  factory MealPlan.fromJson(Map<String, dynamic> json) {
+    return MealPlan(
+      meals: (json['meals'] as List? ?? [])
+          .map((e) => MealPlanMeal.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      nutrients: MealPlanNutrients.fromJson(
+        (json['nutrients'] as Map<String, dynamic>?) ?? {},
+      ),
+    );
+  }
+}
+
 class RecipeService {
   RecipeService._();
   static final RecipeService instance = RecipeService._();
@@ -160,5 +236,45 @@ class RecipeService {
     final sections = await InventoryService.instance.fetchOrCreate();
     final ingredients = ingredientsFromInventory(sections);
     return findByIngredients(ingredients: ingredients, number: number);
+  }
+
+  /// Diet names Spoonacular's meal planner accepts as a `diet` value. The
+  /// settings screen also offers restrictions (e.g. Halal, Kosher) that aren't
+  /// supported diets, so we filter those out before building the request.
+  static const Set<String> supportedDiets = {
+    'Gluten Free',
+    'Ketogenic',
+    'Vegetarian',
+    'Lacto-Vegetarian',
+    'Ovo-Vegetarian',
+    'Vegan',
+    'Pescetarian',
+    'Paleo',
+    'Primal',
+    'Low FODMAP',
+    'Whole30',
+  };
+
+  Future<MealPlan> generateMealPlan({
+    int? targetCalories,
+    String? diet,
+    String? exclude,
+    String timeFrame = 'day',
+  }) async {
+    final params = <String, String>{
+      'apiKey': _spoonacularApiKey,
+      'timeFrame': timeFrame,
+      if (targetCalories != null) 'targetCalories': '$targetCalories',
+      if (diet != null && diet.isNotEmpty) 'diet': diet,
+      if (exclude != null && exclude.isNotEmpty) 'exclude': exclude,
+    };
+    final uri = Uri.https('api.spoonacular.com', '/mealplanner/generate', params);
+    final resp = await http.get(uri);
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'Spoonacular request failed (${resp.statusCode}): ${resp.body}',
+      );
+    }
+    return MealPlan.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
   }
 }

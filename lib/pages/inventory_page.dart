@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
 import '../services/inventory_service.dart';
+import 'scan_receipt_page.dart';
 
 class InventoryPage extends StatefulWidget {
   const InventoryPage({super.key});
@@ -92,6 +93,67 @@ class _InventoryPageState extends State<InventoryPage> {
     });
   }
 
+  Future<void> _scanReceipt() async {
+    final items = await Navigator.of(context).push<List<String>>(
+      CupertinoPageRoute(builder: (_) => const ScanReceiptPage()),
+    );
+    if (items == null || items.isEmpty) return;
+    if (!mounted) return;
+
+    final section = await _pickSection();
+    if (section == null) return;
+
+    setState(() {
+      _sections.putIfAbsent(section, () => []).addAll(items);
+    });
+
+    // Persist the scanned items immediately.
+    setState(() => _saving = true);
+    try {
+      await InventoryService.instance.save(_sections);
+      if (!mounted) return;
+      setState(() => _saving = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _showError('Failed to save: $e');
+    }
+  }
+
+  /// Asks the user which section the scanned items should be added to,
+  /// offering existing sections plus the option to create a new one.
+  Future<String?> _pickSection() async {
+    if (_sections.isEmpty) {
+      return _promptText('New section name').then((v) => v?.trim());
+    }
+    return showCupertinoModalPopup<String>(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('Add scanned items to'),
+        actions: [
+          for (final name in _sections.keys)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.of(ctx).pop(name),
+              child: Text(name),
+            ),
+          CupertinoActionSheetAction(
+            onPressed: () async {
+              final value = await _promptText('New section name');
+              if (!ctx.mounted) return;
+              Navigator.of(ctx).pop(value?.trim());
+            },
+            child: const Text('New Section...'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDestructiveAction: true,
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Cancel'),
+        ),
+      ),
+    ).then((v) => (v == null || v.isEmpty) ? null : v);
+  }
+
   Future<void> _addSection() async {
     final value = await _promptText('New section name');
     if (value == null || value.trim().isEmpty) return;
@@ -116,10 +178,7 @@ class _InventoryPageState extends State<InventoryPage> {
         title: Text(title),
         content: Padding(
           padding: const EdgeInsets.only(top: 8),
-          child: CupertinoTextField(
-            controller: controller,
-            autofocus: true,
-          ),
+          child: CupertinoTextField(controller: controller, autofocus: true),
         ),
         actions: [
           CupertinoDialogAction(
@@ -185,7 +244,7 @@ class _InventoryPageState extends State<InventoryPage> {
                     _ToolButton(
                       icon: CupertinoIcons.doc_text,
                       label: 'Scan Receipt',
-                      onPressed: () {},
+                      onPressed: _scanReceipt,
                     ),
                     const SizedBox(width: 12),
                     _ToolButton(

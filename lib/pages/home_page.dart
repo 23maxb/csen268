@@ -54,7 +54,7 @@ class _HomePageState extends State<HomePage> {
             );
           }
           final recipes = snapshot.data ?? [];
-          const labels = ['Next Meal', 'Dinner', 'Breakfast'];
+          const labels = ['Option 1', 'Option 1', 'Option 1'];
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
             child: Column(
@@ -77,8 +77,7 @@ class _HomePageState extends State<HomePage> {
                       title: recipes[i].title,
                       recipeId: recipes[i].id,
                       imageUrl: recipes[i].image,
-                      details: recipes[i]
-                          .missedIngredients
+                      details: recipes[i].missedIngredients
                           .map((m) => m.original)
                           .toList(),
                     ),

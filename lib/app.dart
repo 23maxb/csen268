@@ -1,3 +1,4 @@
+import 'package:csen268/pages/diet_info_page.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,6 +8,7 @@ import 'pages/home_page.dart';
 import 'pages/inventory_page.dart';
 import 'pages/chat_page.dart';
 import 'pages/login_page.dart';
+import 'pages/meal_plan_page.dart';
 import 'pages/messages_page.dart';
 import 'pages/onboarding_page.dart';
 import 'pages/recipe_page.dart';
@@ -21,13 +23,14 @@ final GoRouter appRouter = GoRouter(
       path: '/onboarding',
       builder: (context, state) => const OnboardingPage(),
     ),
-    GoRoute(
-      path: '/login',
-      builder: (context, state) => const LoginPage(),
-    ),
+    GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
     GoRoute(
       path: '/register',
       builder: (context, state) => const RegisterPage(),
+    ),
+    GoRoute(
+      path: '/diet-info',
+      builder: (context, state) => const DietInfoPage(),
     ),
     GoRoute(
       path: '/recipe/:id',
@@ -62,6 +65,11 @@ final GoRouter appRouter = GoRouter(
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: CalendarPage()),
           ),
+        GoRoute(
+          path: '/meal-plan',
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: MealPlanPage()),
+        ),
         GoRoute(
           path: '/inventory',
           pageBuilder: (context, state) =>

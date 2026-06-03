@@ -16,6 +16,7 @@ class MainScaffold extends StatelessWidget {
   static final List<(String, IconData)> _tabs = [
     ('/home', CupertinoIcons.house),
     if (kCalendarEnabled) ('/calendar', CupertinoIcons.calendar),
+    ('/meal-plan', CupertinoIcons.calendar_today),
     ('/inventory', CupertinoIcons.shopping_cart),
     ('/messages', CupertinoIcons.chat_bubble_2),
     ('/settings', CupertinoIcons.settings),
